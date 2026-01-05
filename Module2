@@ -1,0 +1,1082 @@
+Sub importDMD()
+  
+
+    Call ImportAMPData
+    Call ImportAMPPData
+    Call ImportVMPData
+    Call ImportVMPPData
+    Call ImportVTMData
+    Call ImportINGData
+    Call ImportLOOKUP
+    
+   
+    MsgBox "DMD import complete!", vbInformation
+   
+
+End Sub
+
+Sub ImportAMPData()
+
+    On Error GoTo ErrHandler
+    
+    Dim xmlDoc As Object
+    Dim xmlPath As String
+    Dim db As DAO.Database
+    Dim element As Object
+    Dim node As Object
+    Dim fields(1 To 18) As String ' Fixed 18 fields
+    Dim fields1(1 To 4) As String ' Fixed 4 fields
+    Dim fields2(1 To 4) As String ' Fixed 4 fields
+    Dim fields3(1 To 2) As String ' Fixed 2 fields
+    Dim ampCount As Long
+    Dim context As String
+    Dim sql As String
+    Dim fName As String
+
+    Set db = CurrentDb
+
+    With Application.FileDialog(3)
+        .Title = "Select the AMP XML file to import"
+        .Filters.Clear
+        .Filters.Add "XML Files", "*.xml"
+        Do
+            If .Show <> -1 Then Exit Sub
+            End If
+            xmlPath = .SelectedItems(1)
+            fName = Dir(xmlPath)
+            If fName Like "f_amp2_*.xml" Then Exit Do
+            Else
+                MsgBox "Selected file does not match usual AMP naming format. " & vbCrLf & _
+                   "Please select the correct file.", vbExclamation
+            End If
+        Loop
+    End With
+    
+    
+    
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    xmlDoc.Load xmlPath
+    
+    Debug.Print "Loading XML:", xmlPath
+    Debug.Print "ParseError:", xmlDoc.parseError.errorCode, xmlDoc.parseError.reason
+    Debug.Print "DocumentElement:", xmlDoc.documentElement.nodeName
+
+    Debug.Print "AMP nodes found:", xmlDoc.getElementsByTagName("AMP").Length
+    ampCount = 0
+    context = "AMP"
+    For Each element In xmlDoc.getElementsByTagName("AMP")
+        ampCount = ampCount + 1
+        If ampCount Mod 1000 = 0 Then
+        Debug.Print "Processing AMP:", ampCount
+        End If
+    
+        ' Initialize fields to Null
+        Dim i As Integer
+        For i = 1 To 18
+            fields(i) = "Null"
+        Next
+
+        ' Assign values by known node names and positions
+        For Each node In element.childNodes
+            If ampCount <= 3 Then
+                Debug.Print "AMP child:", node.nodeName, node.Text
+            End If
+            
+            Select Case node.nodeName
+                'Case "APID":                  If IsNumeric(node.Text) Then fields(1) = node.Text ' remove the isnumeric arguments.
+                Case "APID":                  fields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "INVALID":               fields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "VPID":                  fields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NM":                    fields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ABBREVNM":              fields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "DESC":                  fields(6) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NMDT":                  If IsDate(node.Text) Then fields(7) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "NM_PREV":               fields(8) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "SUPPCD":                fields(9) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "LIC_AUTHCD":            fields(10) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "LIC_AUTH_PREVCD":       fields(11) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "LIC_AUTHCHANGECD":      fields(12) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "LIC_AUTHCHANGEDT":      If IsDate(node.Text) Then fields(13) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "COMBPRODCD":            fields(14) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "FLAVOURCD":             fields(15) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "EMA":                   fields(16) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PARALLEL_IMPORT":       fields(17) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "AVAIL_RESTRICTCD":      fields(18) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        ' Join and insert values
+        
+        sql = "INSERT INTO AMP (APID, INVALID, VPID, NM, ABBREVNM, [DESC], NMDT, NM_PREV, " & _
+            "SUPPCD, LIC_AUTHCD, LIC_AUTH_PREVCD, LIC_AUTHCHANGECD, LIC_AUTHCHANGEDT, COMBPRODCD, " & _
+            "FLAVOURCD, EMA, PARALLEL_IMPORT, AVAIL_RESTRICTCD) VALUES (" & Join(fields, ", ") & ")"
+
+        'Debug.Print sql
+        db.Execute sql, dbFailOnError
+    Next
+    Debug.Print "Finished AMP loop. Total AMP rows:", ampCount
+    
+    Debug.Print "AP_INFO nodes found:", xmlDoc.getElementsByTagName("AP_INFO").Length
+    context = "AP_INFO"
+    For Each element In xmlDoc.getElementsByTagName("AP_INFO")
+        ' Initialize fields to Null
+        Dim j As Integer
+        For j = 1 To 4
+            fields1(j) = "Null"
+        Next
+
+        ' Assign values by known node names and positions
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "APID":                  fields1(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "SZ_WEIGHT":             fields1(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "COLOURCD":              fields1(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PROD_ORDER_NO":         fields1(4) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        ' Join and insert values
+        sql = "INSERT INTO AP_INFO (APID, SZ_WEIGHT, COLOURCD, PROD_ORDER_NO) VALUES (" & _
+              Join(fields1, ", ") & ")"
+
+        'Debug.Print sql
+        db.Execute sql, dbFailOnError
+    Next
+    
+    Debug.Print "AP_ING nodes found:", xmlDoc.getElementsByTagName("AP_ING").Length
+    context = "AP_ING"
+    For Each element In xmlDoc.getElementsByTagName("AP_ING")
+        ' Initialize fields to Null
+        Dim k As Integer
+        For k = 1 To 4
+            fields2(k) = "Null"
+        Next
+
+        ' Assign values by known node names and positions
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "APID":                  fields2(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ISID":                  fields2(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "STRNTH":                fields2(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "UOMCD":                 fields2(4) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        ' Join and insert values
+        sql = "INSERT INTO AP_ING (APID, ISID, STRNTH, UOMCD) VALUES (" & _
+              Join(fields2, ", ") & ")"
+
+        Debug.Print sql
+        db.Execute sql, dbFailOnError
+    Next
+    
+    Debug.Print "LIC_ROUTE nodes found:", xmlDoc.getElementsByTagName("LIC_ROUTE").Length
+    context = "LIC_ROUTE"
+    For Each element In xmlDoc.getElementsByTagName("LIC_ROUTE")
+        ' Initialize fields to Null
+        Dim l As Integer
+        For l = 1 To 2
+            fields3(l) = "Null"
+        Next
+
+        ' Assign values by known node names and positions
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "APID":                  fields3(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ROUTECD":               fields3(2) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        ' Join and insert values
+        sql = "INSERT INTO LIC_ROUTE (APID, ROUTECD) VALUES (" & _
+              Join(fields3, ", ") & ")"
+
+        'Debug.Print sql
+        db.Execute sql, dbFailOnError
+    Next
+    
+    Debug.Print "AMP rows now:", DCount("*", "AMP")
+    Debug.Print "AP_INFO rows now:", DCount("*", "AP_INFO")
+    Debug.Print "AP_ING rows now:", DCount("*", "AP_ING")
+    Debug.Print "LIC_ROUTE rows now:", DCount("*", "LIC_ROUTE")
+    
+    MsgBox "AMP import complete!", vbInformation
+    Exit Sub
+    
+' ================= ERROR HANDLER =================
+ErrHandler:
+    Debug.Print "***** DATABASE ERROR *****"
+    Debug.Print "Context:", context
+    Debug.Print "Error", Err.Number, Err.Description
+    Debug.Print "SQL:", sql
+    MsgBox "Import failed. Check Immediate Window.", vbCritical
+    
+        
+End Sub
+
+
+Sub ImportAMPPData()
+    Dim xmlDoc As Object
+    Dim xmlPath As String
+    Dim db As DAO.Database
+    Dim element As Object
+    Dim node As Object
+    Dim AMPPfields(1 To 11) As String
+    Dim PACKINFOfields(1 To 5) As String
+    Dim PRESCRIBINFOfields(1 To 10) As String
+    Dim PRICEINFOfields(1 To 5) As String
+    Dim REIMBINFOfields(1 To 9) As String
+    Dim CCONTENTfields(1 To 2) As String
+    Dim fName As String
+    
+    Set db = CurrentDb
+
+    With Application.FileDialog(3)
+        .Title = "Select the AMPP XML file to import"
+        .Filters.Clear
+        .Filters.Add "XML Files", "*.xml"
+        Do
+            If .Show <> -1 Then Exit Sub
+            End If
+            xmlPath = .SelectedItems(1)
+            fName = Dir(xmlPath)
+            If fName Like "f_ampp2_*.xml" Then Exit Do
+            Else
+                MsgBox "Selected file does not match usual AMPP naming format. " & vbCrLf & _
+                   "Please select the correct file.", vbExclamation
+            End If
+        Loop
+    End With
+
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    xmlDoc.Load xmlPath
+
+    For Each element In xmlDoc.getElementsByTagName("AMPP")
+        ' Initialize fields to Null
+        Dim i As Integer
+        For i = 1 To 11
+            AMPPfields(i) = "Null"
+        Next
+
+        ' Assign values by known node names and positions
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "APPID":                   AMPPfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "INVALID":                 AMPPfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NM":                      AMPPfields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ABBREVNM":                AMPPfields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "VPPID":                   AMPPfields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "APID":                    AMPPfields(6) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "COMBPACKCD":              AMPPfields(7) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "LEGAL_CATCD":             AMPPfields(8) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "SUBP":                    AMPPfields(9) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "DISCCD":                  AMPPfields(10) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "DISCDT":                  If IsDate(node.Text) Then AMPPfields(11) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+            End Select
+        Next
+
+        ' Join and insert values
+        db.Execute "INSERT INTO AMPP (APPID, INVALID, NM, ABBREVNM, VPPID, APID, COMBPACKCD, LEGAL_CATCD, SUBP, DISCCD, DISCDT) VALUES (" & Join(AMPPfields, ", ") & ")"
+    Next
+    
+    For Each element In xmlDoc.getElementsByTagName("PACK_INFO")
+        ' Initialize fields to Null
+        Dim j As Integer
+        For j = 1 To 5
+            PACKINFOfields(j) = "Null"
+        Next
+
+        ' Assign values by known node names and positions
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "APPID":                   PACKINFOfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "REIMB_STATCD":            PACKINFOfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "REIMB_STATDT":            If IsDate(node.Text) Then PACKINFOfields(3) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "REIMB_STATPREVCD":        PACKINFOfields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PACK_ORDER_NO":           PACKINFOfields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        ' Join and insert values
+        db.Execute "INSERT INTO PACK_INFO (APPID, REIMB_STATCD, REIMB_STATDT, REIMB_STATPREVCD, PACK_ORDER_NO) VALUES (" & Join(PACKINFOfields, ", ") & ")"
+    Next
+    
+    For Each element In xmlDoc.getElementsByTagName("PRESCRIB_INFO")
+        ' Initialize fields to Null
+        Dim k As Integer
+        For k = 1 To 10
+            PRESCRIBINFOfields(k) = "Null"
+        Next
+
+        ' Assign values by known node names and positions
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "APPID":                   PRESCRIBINFOfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "SCHED_2":                 PRESCRIBINFOfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ACBS":                    PRESCRIBINFOfields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PADM":                    PRESCRIBINFOfields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "FP10_MDA":                PRESCRIBINFOfields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "SCHED_1":                 PRESCRIBINFOfields(6) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "HOSP":                    PRESCRIBINFOfields(7) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NURSE_F":                 PRESCRIBINFOfields(8) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ENURSE_F":                PRESCRIBINFOfields(9) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "DENT_F":                  PRESCRIBINFOfields(10) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        ' Join and insert values
+        db.Execute "INSERT INTO PRESCRIB_INFO (APPID, SCHED_2, ACBS, PADM, FP10_MDA, SCHED_1, HOSP, NURSE_F, ENURSE_F, DENT_F) VALUES (" & Join(PRESCRIBINFOfields, ", ") & ")"
+    Next
+    
+    For Each element In xmlDoc.getElementsByTagName("PRICE_INFO")
+        ' Initialize fields to Null
+        Dim l As Integer
+        For l = 1 To 5
+            PRICEINFOfields(l) = "Null"
+        Next
+
+        ' Assign values by known node names and positions
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "APPID":                   PRICEINFOfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PRICE":                   PRICEINFOfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PRICEDT":                 If IsDate(node.Text) Then PRICEINFOfields(3) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "PRICE_PREV":              PRICEINFOfields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PRICE_BASISCD":           PRICEINFOfields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        ' Join and insert values
+        db.Execute "INSERT INTO PRICE_INFO (APPID, PRICE, PRICEDT, PRICE_PREV, PRICE_BASISCD) VALUES (" & Join(PRICEINFOfields, ", ") & ")"
+    Next
+    
+    For Each element In xmlDoc.getElementsByTagName("REIMB_INFO")
+        ' Initialize fields to Null
+        Dim m As Integer
+        For m = 1 To 9
+            REIMBINFOfields(m) = "Null"
+        Next
+
+        ' Assign values by known node names and positions
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "APPID":                   REIMBINFOfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PX_CHRGS":                REIMBINFOfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "DISP_FEES":               REIMBINFOfields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "BB":                      REIMBINFOfields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "LTD_STAB":                REIMBINFOfields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "CAL_PACK":                REIMBINFOfields(6) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "SPEC_CONTCD":             REIMBINFOfields(7) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "DND":                     REIMBINFOfields(8) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "FP34D":                   REIMBINFOfields(9) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        ' Join and insert values
+        db.Execute "INSERT INTO REIMB_INFO (APPID, PX_CHRGS, DISP_FEES, BB, LTD_STAB, CAL_PACK, SPEC_CONTCD, DND, FP34D) VALUES (" & Join(REIMBINFOfields, ", ") & ")"
+    Next
+    
+    For Each element In xmlDoc.getElementsByTagName("CCONTENT")
+        ' Initialize fields to Null
+        Dim n As Integer
+        For n = 1 To 2
+            CCONTENTfields(n) = "Null"
+        Next
+
+        ' Assign values by known node names and positions
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "PRNTAPPID":               CCONTENTfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "CHLDAPPID":               CCONTENTfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        ' Join and insert values
+        db.Execute "INSERT INTO CCONTENT (PRNTAPPID, CHLDAPPID) VALUES (" & Join(CCONTENTfields, ", ") & ")"
+    Next
+
+    MsgBox "AMPP import complete!", vbInformation
+End Sub
+
+Sub ImportVMPData()
+    Dim xmlDoc As Object
+    Dim xmlPath As String
+    Dim db As DAO.Database
+    Dim element As Object
+    Dim node As Object
+    Dim VMPfields(1 To 24) As String
+    Dim VPIfields(1 To 8) As String
+    Dim ONTfields(1 To 2) As String
+    Dim DFORMfields(1 To 2) As String
+    Dim DROUTEfields(1 To 2) As String
+    Dim CONTROLINFOfields(1 To 4) As String
+    Dim fName As String
+    
+    Set db = CurrentDb
+
+    With Application.FileDialog(3)
+        .Title = "Select the VMP XML file to import"
+        .Filters.Clear
+        .Filters.Add "XML Files", "*.xml"
+        Do
+            If .Show <> -1 Then Exit Sub
+            End If
+            xmlPath = .SelectedItems(1)
+            fName = Dir(xmlPath)
+            If fName Like "f_vmp2_*.xml" Then Exit Do
+            Else
+                MsgBox "Selected file does not match usual VMP naming format. " & vbCrLf & _
+                   "Please select the correct file.", vbExclamation
+            End If
+        Loop
+    End With
+
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    xmlDoc.Load xmlPath
+
+    ' =========================
+    ' Import VMP elements
+    ' =========================
+    For Each element In xmlDoc.getElementsByTagName("VMP")
+        Dim i As Integer
+        For i = 1 To 24
+            VMPfields(i) = "Null"
+        Next
+
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "VPID":              VMPfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "VPIDDT":            If IsDate(node.Text) Then VMPfields(2) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "VPIDPREV":          VMPfields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "VTMID":             VMPfields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "INVALID":           VMPfields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NM":                VMPfields(6) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ABBREVNM":          VMPfields(7) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "BASISCD":           VMPfields(8) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NMDT":              If IsDate(node.Text) Then VMPfields(9) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "NMPREV":            VMPfields(10) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "BASIS_PREVCD":      VMPfields(11) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NMCHANGECD":        VMPfields(12) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "COMBPRODCD":        VMPfields(13) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PRES_STATCD":       VMPfields(14) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "SUG_F":             VMPfields(15) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "GLU_F":             VMPfields(16) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PRES_F":            VMPfields(17) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "CFC_F":             VMPfields(18) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NON_AVAILCD":       VMPfields(19) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NON_AVAILDT":       If IsDate(node.Text) Then VMPfields(20) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "DF_INDCD":          VMPfields(21) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "UDFS":              VMPfields(22) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "UDFS_UOMCD":        VMPfields(23) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "UNIT_DOSE_UOMCD":   VMPfields(24) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        db.Execute "INSERT INTO VMP (VPID, VPIDDT, VPIDPREV, VTMID, INVALID, NM, ABBREVNM, BASISCD, NMDT, NMPREV, BASIS_PREVCD, NMCHANGECD, COMBPRODCD, PRES_STATCD, SUG_F, GLU_F, PRES_F, CFC_F, NON_AVAILCD, NON_AVAILDT, DF_INDCD, UDFS, UDFS_UOMCD, UNIT_DOSE_UOMCD) VALUES (" & Join(VMPfields, ", ") & ")"
+    Next
+
+
+    ' =========================
+    ' Import VPI elements
+    ' =========================
+    For Each element In xmlDoc.getElementsByTagName("VPI")
+        Dim j As Integer
+        For j = 1 To 8
+            VPIfields(j) = "Null"
+        Next
+
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "VPID":               VPIfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ISID":               VPIfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "BASIS_STRNTCD":      VPIfields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "BS_SUBID":           VPIfields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "STRNT_NMRTR_VAL":    VPIfields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "STRNT_NMRTR_UOMCD":  VPIfields(6) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "STRNT_DNMTR_VAL":    VPIfields(7) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "STRNT_DNMTR_UOMCD":  VPIfields(8) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        db.Execute "INSERT INTO VPI (VPID, ISID, BASIS_STRNTCD, BS_SUBID, STRNT_NMRTR_VAL, STRNT_NMRTR_UOMCD, STRNT_DNMTR_VAL, STRNT_DNMTR_UOMCD) VALUES (" & Join(VPIfields, ", ") & ")"
+    Next
+
+
+    ' =========================
+    ' Import ONT elements
+    ' =========================
+    For Each element In xmlDoc.getElementsByTagName("ONT")
+        Dim k As Integer
+        For k = 1 To 2
+            ONTfields(k) = "Null"
+        Next
+
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "VPID":       ONTfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "FORMCD":     ONTfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        db.Execute "INSERT INTO ONT (VPID, FORMCD) VALUES (" & Join(ONTfields, ", ") & ")"
+    Next
+
+
+    ' =========================
+    ' Import DFORM elements
+    ' =========================
+    For Each element In xmlDoc.getElementsByTagName("DFORM")
+        Dim l As Integer
+        For l = 1 To 2
+            DFORMfields(l) = "Null"
+        Next
+
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "VPID":       DFORMfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "FORMCD":     DFORMfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        db.Execute "INSERT INTO DFORM (VPID, FORMCD) VALUES (" & Join(DFORMfields, ", ") & ")"
+    Next
+
+
+    ' =========================
+    ' Import DROUTE elements
+    ' =========================
+    For Each element In xmlDoc.getElementsByTagName("DROUTE")
+        Dim m As Integer
+        For m = 1 To 2
+            DROUTEfields(m) = "Null"
+        Next
+
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "VPID":       DROUTEfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ROUTECD":    DROUTEfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        db.Execute "INSERT INTO DROUTE (VPID, ROUTECD) VALUES (" & Join(DROUTEfields, ", ") & ")"
+    Next
+
+
+    ' =========================
+    ' Import CONTROL_INFO elements
+    ' =========================
+    For Each element In xmlDoc.getElementsByTagName("CONTROL_INFO")
+        Dim n As Integer
+        For n = 1 To 4
+            CONTROLINFOfields(n) = "Null"
+        Next
+
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "VPID":           CONTROLINFOfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "CATCD":          CONTROLINFOfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "CATDT":          If IsDate(node.Text) Then CONTROLINFOfields(3) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "CAT_PREVCD":     CONTROLINFOfields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next
+
+        db.Execute "INSERT INTO CONTROL_INFO (VPID, CATCD, CATDT, CAT_PREVCD) VALUES (" & Join(CONTROLINFOfields, ", ") & ")"
+    Next
+
+    MsgBox "VMP import complete!", vbInformation
+End Sub
+
+Sub ImportVMPPData()
+    Dim xmlDoc As Object
+    Dim xmlPath As String
+    Dim db As DAO.Database
+    Dim element As Object
+    Dim node As Object
+    
+    Dim VMPPfields(1 To 8) As String
+    Dim DTINFOfields(1 To 5) As String
+    Dim CCONTENTfields(1 To 2) As String
+    Dim fName As String
+    
+    Set db = CurrentDb
+    
+    With Application.FileDialog(3)
+        .Title = "Select the VMPP XML file to import"
+        .Filters.Clear
+        .Filters.Add "XML Files", "*.xml"
+        Do
+            If .Show <> -1 Then Exit Sub
+            End If
+            xmlPath = .SelectedItems(1)
+            fName = Dir(xmlPath)
+            If fName Like "f_vmpp2_*.xml" Then Exit Do
+            Else
+                MsgBox "Selected file does not match usual VMPP naming format. " & vbCrLf & _
+                   "Please select the correct file.", vbExclamation
+            End If
+        Loop
+    End With
+    
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    xmlDoc.Load xmlPath
+    
+    '==========================
+    ' Import VMPP elements
+    '==========================
+    For Each element In xmlDoc.getElementsByTagName("VMPP")
+        Dim i As Integer
+        For i = 1 To 8
+            VMPPfields(i) = "Null"
+        Next i
+        
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "VPPID":       VMPPfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "INVALID":     VMPPfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NM":          VMPPfields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ABBREVNM":    VMPPfields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "VPID":        VMPPfields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "QTYVAL":      VMPPfields(6) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "QTY_UOMCD":   VMPPfields(7) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "COMBPACKCD":  VMPPfields(8) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next node
+        
+        db.Execute "INSERT INTO VMPP (VPPID, INVALID, NM, ABBREVNM, VPID, QTYVAL, QTY_UOMCD, COMBPACKCD) VALUES (" & Join(VMPPfields, ", ") & ")"
+    Next element
+    
+    '==========================
+    ' Import DTINFO elements
+    '==========================
+    For Each element In xmlDoc.getElementsByTagName("DTINFO")
+        Dim j As Integer
+        For j = 1 To 5
+            DTINFOfields(j) = "Null"
+        Next j
+        
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "VPPID":       DTINFOfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PAY_CATCD":   DTINFOfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "PRICE":       DTINFOfields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "DT":          If IsDate(node.Text) Then DTINFOfields(4) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "PREVPRICE":   DTINFOfields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next node
+        
+        db.Execute "INSERT INTO DTINFO (VPPID, PAY_CATCD, PRICE, DT, PREVPRICE) VALUES (" & Join(DTINFOfields, ", ") & ")"
+    Next element
+    
+    '==========================
+    ' Import CCONTENT elements
+    '==========================
+    For Each element In xmlDoc.getElementsByTagName("CCONTENT")
+        Dim k As Integer
+        For k = 1 To 2
+            CCONTENTfields(k) = "Null"
+        Next k
+        
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "PRNTVPPID": CCONTENTfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "CHLDVPPID": CCONTENTfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next node
+        
+        db.Execute "INSERT INTO CCONTENT_V (PRNTVPPID, CHLDVPPID) VALUES (" & Join(CCONTENTfields, ", ") & ")" 'reminder tablename modified
+    Next element
+    
+    MsgBox "VMPP import complete!", vbInformation
+End Sub
+
+Sub ImportVTMData()
+    Dim xmlDoc As Object
+    Dim xmlPath As String
+    Dim db As DAO.Database
+    Dim element As Object
+    Dim node As Object
+    Dim VTMfields(1 To 6) As String
+    Dim fName As String
+    
+    Set db = CurrentDb
+    
+    With Application.FileDialog(3)
+        .Title = "Select the VTM XML file to import"
+        .Filters.Clear
+        .Filters.Add "XML Files", "*.xml"
+        Do
+            If .Show <> -1 Then Exit Sub
+            End If
+            xmlPath = .SelectedItems(1)
+            fName = Dir(xmlPath)
+            If fName Like "f_vtm2_*.xml" Then Exit Do
+            Else
+                MsgBox "Selected file does not match usual VTM naming format. " & vbCrLf & _
+                   "Please select the correct file.", vbExclamation
+            End If
+        Loop
+    End With
+    
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    xmlDoc.Load xmlPath
+    
+    '==========================
+    ' Import VTM elements
+    '==========================
+    For Each element In xmlDoc.getElementsByTagName("VTM")
+        Dim i As Integer
+        For i = 1 To 6
+            VTMfields(i) = "Null"
+        Next i
+        
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "VTMID":       VTMfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "INVALID":     VTMfields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NM":          VTMfields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ABBREVNM":    VTMfields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "VTMIDPREV":   VTMfields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "VTMIDDT":     If IsDate(node.Text) Then VTMfields(6) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+            End Select
+        Next node
+        
+        db.Execute "INSERT INTO VTM (VTMID, INVALID, NM, ABBREVNM, VTMIDPREV, VTMIDDT) VALUES (" & Join(VTMfields, ", ") & ")"
+    Next element
+    
+    MsgBox "VTM import complete!", vbInformation
+End Sub
+
+Sub ImportINGData()
+    Dim xmlDoc As Object
+    Dim xmlPath As String
+    Dim db As DAO.Database
+    Dim element As Object
+    Dim node As Object
+    Dim INGfields(1 To 5) As String
+    Dim fName As String
+    
+    Set db = CurrentDb
+    
+    With Application.FileDialog(3)
+        .Title = "Select the INGREDIENT XML file to import"
+        .Filters.Clear
+        .Filters.Add "XML Files", "*.xml"
+        Do
+            If .Show <> -1 Then Exit Sub
+            End If
+            xmlPath = .SelectedItems(1)
+            fName = Dir(xmlPath)
+            If fName Like "f_ingredient2_*.xml" Then Exit Do
+            Else
+                MsgBox "Selected file does not match usual INGREDIENT naming format. " & vbCrLf & _
+                   "Please select the correct file.", vbExclamation
+            End If
+        Loop
+    End With
+    
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    xmlDoc.Load xmlPath
+    
+    '==========================
+    ' Import ING elements
+    '==========================
+    For Each element In xmlDoc.getElementsByTagName("ING")
+        Dim i As Integer
+        For i = 1 To 5
+            INGfields(i) = "Null"
+        Next i
+        
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "ISID":        INGfields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "ISIDDT":      If IsDate(node.Text) Then INGfields(2) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "ISIDPREV":    INGfields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "INVALID":     INGfields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "NM":          INGfields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next node
+        
+        db.Execute "INSERT INTO ING (ISID, ISIDDT, ISIDPREV, INVALID, NM) VALUES (" & Join(INGfields, ", ") & ")"
+    Next element
+    
+    MsgBox "ING import complete!", vbInformation
+End Sub
+
+
+Sub ImportInfoType(groupName As String, tableName As String, xmlDoc As Object, db As DAO.Database)
+    Dim element As Object, node As Object
+    Dim fields(1 To 2) As String
+
+    For Each element In xmlDoc.getElementsByTagName(groupName)(0).getElementsByTagName("INFO")
+        fields(1) = "Null": fields(2) = "Null"
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "CD":      fields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "DESC"
+                    If Trim(node.Text) <> "" Then
+                        fields(2) = "'" & Replace(node.Text, "'", "''") & "'"
+                    End If
+            End Select
+        Next node
+        db.Execute "INSERT INTO [" & tableName & "] (CD, [DESC]) VALUES (" & Join(fields, ", ") & ")"
+    Next element
+End Sub
+
+Sub ImportHistoryInfoType(groupName As String, tableName As String, xmlDoc As Object, db As DAO.Database)
+    Dim element As Object, node As Object
+    Dim fields(1 To 4) As String
+    
+    For Each element In xmlDoc.getElementsByTagName(groupName)(0).getElementsByTagName("INFO")
+        fields(1) = "Null": fields(2) = "Null": fields(3) = "Null": fields(4) = "Null"
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "CD":      fields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "CDDT":    If IsDate(node.Text) Then fields(2) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "CDPREV":  fields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "DESC":    fields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next node
+        db.Execute "INSERT INTO [" & tableName & "] (CD, CDDT, CDPREV, [DESC]) VALUES (" & Join(fields, ", ") & ")"
+    Next element
+End Sub
+
+Sub ImportSupplierInfoType(groupName As String, tableName As String, xmlDoc As Object, db As DAO.Database)
+    Dim element As Object, node As Object
+    Dim fields(1 To 5) As String
+
+    For Each element In xmlDoc.getElementsByTagName(groupName)(0).getElementsByTagName("INFO")
+        fields(1) = "Null": fields(2) = "Null": fields(3) = "Null": fields(4) = "Null": fields(5) = "Null"
+        For Each node In element.childNodes
+            Select Case node.nodeName
+                Case "CD":      fields(1) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "CDDT":    If IsDate(node.Text) Then fields(2) = "#" & Format(CDate(node.Text), "yyyy-mm-dd") & "#"
+                Case "CDPREV":  fields(3) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "INVALID": fields(4) = "'" & Replace(node.Text, "'", "''") & "'"
+                Case "DESC":    fields(5) = "'" & Replace(node.Text, "'", "''") & "'"
+            End Select
+        Next node
+        db.Execute "INSERT INTO [" & tableName & "] (CD, CDDT, CDPREV, INVALID, [DESC]) VALUES (" & Join(fields, ", ") & ")"
+    Next element
+End Sub
+
+Sub ImportLOOKUP()
+    Dim xmlDoc As Object, xmlPath As String
+    Dim db As DAO.Database
+    Dim groupName As String
+    Dim fName As String
+
+    Set db = CurrentDb
+
+    With Application.FileDialog(3)
+        .Title = "Select the LOOKUP XML file to import"
+        .Filters.Clear
+        .Filters.Add "XML Files", "*.xml"
+        Do
+            If .Show <> -1 Then Exit Sub
+            End If
+            xmlPath = .SelectedItems(1)
+            fName = Dir(xmlPath)
+            If fName Like "f_lookup2_*.xml" Then Exit Do
+            Else
+                MsgBox "Selected file does not match usual LOOKUP naming format. " & vbCrLf & _
+                   "Please select the correct file.", vbExclamation
+            End If
+        Loop
+    End With
+
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    xmlDoc.Load xmlPath
+    
+    ' === InfoType groups ===
+    ImportInfoType "COMBINATION_PACK_IND", "COMBINATION_PACK_IND", xmlDoc, db
+    ImportInfoType "COMBINATION_PROD_IND", "COMBINATION_PROD_IND", xmlDoc, db
+    ImportInfoType "BASIS_OF_NAME", "BASIS_OF_NAME", xmlDoc, db
+    ImportInfoType "NAMECHANGE_REASON", "NAMECHANGE_REASON", xmlDoc, db
+    ImportInfoType "VIRTUAL_PRODUCT_PRES_STATUS", "VIRTUAL_PRODUCT_PRES_STATUS", xmlDoc, db
+    ImportInfoType "CONTROL_DRUG_CATEGORY", "CONTROL_DRUG_CATEGORY", xmlDoc, db
+    ImportInfoType "LICENSING_AUTHORITY", "LICENSING_AUTHORITY", xmlDoc, db
+    ImportInfoType "ONT_FORM_ROUTE", "ONT_FORM_ROUTE", xmlDoc, db
+    ImportInfoType "DT_PAYMENT_CATEGORY", "DT_PAYMENT_CATEGORY", xmlDoc, db
+    ImportInfoType "FLAVOUR", "FLAVOUR", xmlDoc, db
+    ImportInfoType "COLOUR", "COLOUR", xmlDoc, db
+    ImportInfoType "BASIS_OF_STRNTH", "BASIS_OF_STRNTH", xmlDoc, db
+    ImportInfoType "REIMBURSEMENT_STATUS", "REIMBURSEMENT_STATUS", xmlDoc, db
+    ImportInfoType "SPEC_CONT", "SPEC_CONT", xmlDoc, db
+    ImportInfoType "DND", "DND", xmlDoc, db
+    ImportInfoType "VIRTUAL_PRODUCT_NON_AVAIL", "VIRTUAL_PRODUCT_NON_AVAIL", xmlDoc, db
+    ImportInfoType "DISCONTINUED_IND", "DISCONTINUED_IND", xmlDoc, db
+    ImportInfoType "DF_INDICATOR", "DF_INDICATOR", xmlDoc, db
+    ImportInfoType "PRICE_BASIS", "PRICE_BASIS", xmlDoc, db
+    ImportInfoType "LEGAL_CATEGORY", "LEGAL_CATEGORY", xmlDoc, db
+    ImportInfoType "AVAILABILITY_RESTRICTION", "AVAILABILITY_RESTRICTION", xmlDoc, db
+    ImportInfoType "LICENSING_AUTHORITY_CHANGE_REASON", "LICENSING_AUTHORITY_CHANGE_REASON", xmlDoc, db
+    
+    ' === HistoryInfoType groups ===
+    ImportHistoryInfoType "UNIT_OF_MEASURE", "UNIT_OF_MEASURE", xmlDoc, db
+    ImportHistoryInfoType "FORM", "FORM", xmlDoc, db
+    ImportHistoryInfoType "ROUTE", "ROUTE", xmlDoc, db
+
+    ' === SupplierInfoType group ===
+    ImportSupplierInfoType "SUPPLIER", "SUPPLIER", xmlDoc, db
+
+    MsgBox "LOOKUP import complete!", vbInformation
+End Sub
+
+
+
+
+Sub DebugFirst5AMPs()
+    Dim xmlDoc As Object
+    Dim xmlPath As String
+    Dim element As Object
+    Dim node As Object
+    Dim tagName As Variant
+    Dim i As Integer, count As Integer
+    
+    Dim expectedTags As Variant
+    expectedTags = Array("APID", "INVALID", "VPID", "NM", "ABBREVNM", "DESC", "NMDT", "NM_PREV", _
+                         "SUPPCD", "LIC_AUTHCD", "LIC_AUTH_PREVCD", "LIC_AUTHCHANGECD", "LIC_AUTHCHANGEDT", _
+                         "COMBPRODCD", "FLAVOURCD", "EMA", "PARALLEL_IMPORT", "AVAIL_RESTRICTCD")
+    
+    With Application.FileDialog(3)
+        .Title = "Select the XML file to debug"
+        .Filters.Clear
+        .Filters.Add "XML Files", "*.xml"
+        If .Show <> -1 Then Exit Sub
+        xmlPath = .SelectedItems(1)
+    End With
+
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    xmlDoc.Load xmlPath
+    Debug.Print "xmldoc loaded"
+
+    count = 0
+    Debug.Print count
+    For Each element In xmlDoc.getElementsByTagName("AP_ING") 'edit tag name.
+        count = count + 1
+        Debug.Print String(50, "-")
+        Debug.Print "AMP Element #" & count
+        
+        For i = 0 To UBound(expectedTags)
+            Set node = element.SelectSingleNode(expectedTags(i))
+            If node Is Nothing Then
+                Debug.Print expectedTags(i) & ": [Missing Node]"
+                
+            Else
+                Debug.Print expectedTags(i) & ": '" & Trim(node.Text) & "' | IsNumeric: " & IsNumeric(Trim(node.Text))
+                
+            End If
+        Next i
+        
+        If count >= 5 Then Exit For
+    Next
+End Sub
+
+Sub DebugFirst5AP_INGs()
+    Dim xmlDoc As Object
+    Dim xmlPath As String
+    Dim element As Object
+    Dim node As Object
+    Dim i As Integer, count As Integer
+    Dim expectedTags As Variant
+    Dim apNodes As Object  ' node list for AP_ING elements
+
+    expectedTags = Array("APID", "ISID", "STRNTH", "UOMCD")
+
+    ' Prompt user to select XML file
+    With Application.FileDialog(3)
+        .Title = "Select the XML file to debug"
+        .Filters.Clear
+        .Filters.Add "XML Files", "*.xml"
+        If .Show <> -1 Then Exit Sub
+        xmlPath = .SelectedItems(1)
+    End With
+
+    ' Load XML
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    xmlDoc.async = False
+    xmlDoc.Load xmlPath
+
+    ' Check for XML parse errors
+    If xmlDoc.parseError.errorCode <> 0 Then
+        MsgBox "Error parsing XML: " & xmlDoc.parseError.reason, vbCritical
+        Exit Sub
+    End If
+
+    ' Get all AP_ING elements
+    Set apNodes = xmlDoc.getElementsByTagName("AP_ING")
+
+    ' ? Check if any were found
+    If apNodes.Length = 0 Then
+        MsgBox "No <AP_ING> elements found in this XML file.", vbExclamation, "Debug Info"
+        Exit Sub
+    End If
+
+    ' Loop through first 5 <AP_ING> elements
+    count = 0
+    For Each element In apNodes
+        count = count + 1
+        Debug.Print String(50, "-")
+        Debug.Print "AP_ING Element #" & count
+
+        ' Loop through expected tags
+        For i = 0 To UBound(expectedTags)
+            Set node = element.SelectSingleNode(expectedTags(i))
+            If node Is Nothing Then
+                Debug.Print expectedTags(i) & ": [Missing Node]"
+            Else
+                Debug.Print expectedTags(i) & ": '" & Trim(node.Text) & _
+                    "' | IsNumeric: " & IsNumeric(Trim(node.Text))
+            End If
+        Next i
+
+        If count >= 5 Then Exit For
+    Next
+
+    MsgBox count & " <AP_ING> element(s) processed.", vbInformation, "Debug Complete"
+End Sub
+
+Sub DetectRootElement()
+    Dim xmlDoc As Object
+    Dim rootElement As Object
+    Dim xmlFilePath As String
+
+    ' Prompt user to select an XML file
+    With Application.FileDialog(3) ' msoFileDialogFilePicker
+        .Title = "Select XML File"
+        .Filters.Clear
+        .Filters.Add "XML Files", "*.xml"
+        If .Show = -1 Then
+            xmlFilePath = .SelectedItems(1)
+        Else
+            Exit Sub
+        End If
+    End With
+
+    ' Load the XML file
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument")
+    xmlDoc.async = False
+    xmlDoc.Load xmlFilePath
+
+    ' Ensure the XML loaded correctly
+    If xmlDoc.parseError.errorCode <> 0 Then
+        MsgBox "Error parsing XML: " & xmlDoc.parseError.reason, vbCritical
+        Exit Sub
+    End If
+
+    ' Get the root element
+    Set rootElement = xmlDoc.documentElement
+
+    ' Display the root element name
+    If Not rootElement Is Nothing Then
+        MsgBox "Root Element: " & rootElement.nodeName, vbInformation
+    Else
+        MsgBox "No root element found!", vbExclamation
+    End If
+
+    ' Cleanup
+    Set xmlDoc = Nothing
+End Sub
+
+
+
