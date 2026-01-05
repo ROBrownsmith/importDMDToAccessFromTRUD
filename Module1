@@ -1,0 +1,823 @@
+' ===============================
+' Access_Table_Creation_Modules.bas
+' Generated: full set of table-creation modules split by logical modules
+' Target: MS Access VBA (DAO)
+' Paste each module into a separate standard module in the VBA editor if you prefer.
+' ===============================
+
+' -------------------------
+' Module: Module_Tables_Common
+' -------------------------
+Option Compare Database
+Option Explicit
+
+' Helper to add a primary key (supports composite keys)
+Public Sub AddPrimaryKey(tdf As DAO.TableDef, ParamArray fields())
+    Dim idx As DAO.Index
+    Dim fldName As Variant
+
+    On Error Resume Next
+    ' remove existing PrimaryKey index if present
+    tdf.Indexes.Delete "PrimaryKey"
+    On Error GoTo 0
+
+    Set idx = tdf.CreateIndex("PrimaryKey")
+    idx.Primary = True
+    idx.Unique = True
+
+    For Each fldName In fields
+        idx.fields.Append idx.CreateField(CStr(fldName))
+    Next fldName
+
+    tdf.Indexes.Append idx
+End Sub
+
+' Safe helper to drop a table if it exists
+Public Sub SafeDropTable(db As DAO.Database, tblName As String)
+    On Error GoTo ErrHandler
+    db.Execute "DROP TABLE " & tblName, dbFailOnError
+    Exit Sub
+
+ErrHandler:
+    Debug.Print "Could not drop table " & tblName & ": " & Err.Number & " - " & Err.Description
+    Err.Clear
+End Sub
+
+
+' -------------------------
+' Module: Module_Tables_Lookup
+
+Sub CreateLookupTables()
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+
+    Set db = CurrentDb
+
+    ' Helper to create simple lookup table with CD as PK
+    CreateLookupTable db, "COMBINATION_PACK_IND"
+    CreateLookupTable db, "COMBINATION_PROD_IND"
+    CreateLookupTable db, "BASIS_OF_NAME"
+    CreateLookupTable db, "NAMECHANGE_REASON"
+    CreateLookupTable db, "VIRTUAL_PRODUCT_PRES_STATUS"
+    CreateLookupTable db, "CONTROL_DRUG_CATEGORY"
+    CreateLookupTable db, "LICENSING_AUTHORITY"
+    CreateLookupTable db, "ONT_FORM_ROUTE"
+    CreateLookupTable db, "DT_PAYMENT_CATEGORY"
+    CreateLookupTable db, "FLAVOUR"
+    CreateLookupTable db, "COLOUR"
+    CreateLookupTable db, "BASIS_OF_STRNTH"
+    CreateLookupTable db, "REIMBURSEMENT_STATUS"
+    CreateLookupTable db, "SPEC_CONT"
+    CreateLookupTable db, "DND"
+    CreateLookupTable db, "VIRTUAL_PRODUCT_NON_AVAIL"
+    CreateLookupTable db, "DISCONTINUED_IND"
+    CreateLookupTable db, "DF_INDICATOR"
+    CreateLookupTable db, "PRICE_BASIS"
+    CreateLookupTable db, "LEGAL_CATEGORY"
+    CreateLookupTable db, "AVAILABILITY_RESTRICTION"
+    CreateLookupTable db, "LICENSING_AUTHORITY_CHANGE_REASON"
+
+    ' History type tables
+    CreateLookupHistoryTable db, "UNIT_OF_MEASURE"
+    CreateLookupHistoryTable db, "FORM"
+    CreateLookupHistoryTable db, "ROUTE"
+
+    ' Supplier type
+    CreateLookupHistoryTable db, "SUPPLIER", True
+
+    MsgBox "Lookup Tables successfully created!", vbInformation
+End Sub
+
+Private Sub CreateLookupTable(db As DAO.Database, tableName As String)
+    Dim tdf As DAO.TableDef
+
+    SafeDropTable db, tableName
+
+    Set tdf = db.CreateTableDef(tableName)
+    tdf.fields.Append tdf.CreateField("CD", dbText, 4)
+    tdf.fields.Append tdf.CreateField("DESC", dbText, 255)
+    db.TableDefs.Append tdf
+
+    AddPrimaryKey tdf, "CD"
+End Sub
+
+Private Sub CreateLookupHistoryTable(db As DAO.Database, tableName As String, Optional includeInvalid As Boolean = False)
+    Dim tdf As DAO.TableDef
+
+    SafeDropTable db, tableName
+
+    Set tdf = db.CreateTableDef(tableName)
+    tdf.fields.Append tdf.CreateField("CD", dbText, 255)
+    tdf.fields.Append tdf.CreateField("CDDT", dbDate)
+    tdf.fields.Append tdf.CreateField("CDPREV", dbText, 255)
+    If includeInvalid Then tdf.fields.Append tdf.CreateField("INVALID", dbText, 255)
+    tdf.fields.Append tdf.CreateField("DESC", dbText, 255)
+    db.TableDefs.Append tdf
+
+    AddPrimaryKey tdf, "CD"
+End Sub
+
+
+
+' -------------------------
+' Module: Module_Tables_ING
+' -------------------------
+Public Sub CreateTable_ING()
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+
+    Set db = CurrentDb()
+    SafeDropTable db, "ING"
+
+    Set tdf = db.CreateTableDef("ING")
+    With tdf.fields
+        .Append tdf.CreateField("ISID", dbText, 20)
+        .Append tdf.CreateField("ISIDDT", dbDate)
+        .Append tdf.CreateField("ISIDPREV", dbText, 20)
+        .Append tdf.CreateField("INVALID", dbText, 20)
+        .Append tdf.CreateField("NM", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "ISID"
+
+    Set tdf = Nothing
+    Set db = Nothing
+End Sub
+
+' -------------------------
+' Module: Module_Tables_AMPP
+' -------------------------
+Public Sub CreateTablesAMPP_Full()
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+
+    Set db = CurrentDb()
+
+    SafeDropTable db, "AMPP"
+    Set tdf = db.CreateTableDef("AMPP")
+    With tdf.fields
+        .Append tdf.CreateField("APPID", dbText, 20)
+        .Append tdf.CreateField("INVALID", dbText, 255)
+        .Append tdf.CreateField("NM", dbText, 255)
+        .Append tdf.CreateField("ABBREVNM", dbText, 255)
+        .Append tdf.CreateField("VPPID", dbText, 20)
+        .Append tdf.CreateField("APID", dbText, 20)
+        .Append tdf.CreateField("COMBPACKCD", dbText, 4)
+        .Append tdf.CreateField("LEGAL_CATCD", dbText, 255)
+        .Append tdf.CreateField("SUBP", dbText, 255)
+        .Append tdf.CreateField("DISCCD", dbText, 255)
+        .Append tdf.CreateField("DISCDT", dbDate)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "APPID"
+
+    SafeDropTable db, "PACK_INFO"
+    Set tdf = db.CreateTableDef("PACK_INFO")
+    With tdf.fields
+        .Append tdf.CreateField("APPID", dbText, 20)
+        .Append tdf.CreateField("REIMB_STATCD", dbText, 255)
+        .Append tdf.CreateField("REIMB_STATDT", dbDate)
+        .Append tdf.CreateField("REIMB_STATPREVCD", dbText, 255)
+        .Append tdf.CreateField("PACK_ORDER_NO", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "APPID"
+
+    SafeDropTable db, "PRESCRIB_INFO"
+    Set tdf = db.CreateTableDef("PRESCRIB_INFO")
+    With tdf.fields
+        .Append tdf.CreateField("APPID", dbText, 20)
+        .Append tdf.CreateField("SCHED_2", dbText, 255)
+        .Append tdf.CreateField("ACBS", dbText, 255)
+        .Append tdf.CreateField("PADM", dbText, 255)
+        .Append tdf.CreateField("FP10_MDA", dbText, 255)
+        .Append tdf.CreateField("SCHED_1", dbText, 255)
+        .Append tdf.CreateField("HOSP", dbText, 255)
+        .Append tdf.CreateField("NURSE_F", dbText, 255)
+        .Append tdf.CreateField("ENURSE_F", dbText, 255)
+        .Append tdf.CreateField("DENT_F", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "APPID"
+
+    SafeDropTable db, "PRICE_INFO"
+    Set tdf = db.CreateTableDef("PRICE_INFO")
+    With tdf.fields
+        .Append tdf.CreateField("APPID", dbText, 20)
+        .Append tdf.CreateField("PRICE", dbText, 255)
+        .Append tdf.CreateField("PRICEDT", dbDate)
+        .Append tdf.CreateField("PRICE_PREV", dbText, 255)
+        .Append tdf.CreateField("PRICE_BASISCD", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "APPID"
+
+    SafeDropTable db, "REIMB_INFO"
+    Set tdf = db.CreateTableDef("REIMB_INFO")
+    With tdf.fields
+        .Append tdf.CreateField("APPID", dbText, 20)
+        .Append tdf.CreateField("PX_CHRGS", dbText, 255)
+        .Append tdf.CreateField("DISP_FEES", dbText, 255)
+        .Append tdf.CreateField("BB", dbText, 255)
+        .Append tdf.CreateField("LTD_STAB", dbText, 255)
+        .Append tdf.CreateField("CAL_PACK", dbText, 255)
+        .Append tdf.CreateField("SPEC_CONTCD", dbText, 255)
+        .Append tdf.CreateField("DND", dbText, 255)
+        .Append tdf.CreateField("FP34D", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "APPID"
+
+    ' CCONTENT (no PK defined)
+    SafeDropTable db, "CCONTENT"
+    Set tdf = db.CreateTableDef("CCONTENT")
+    With tdf.fields
+        .Append tdf.CreateField("PRNTAPPID", dbText, 255)
+        .Append tdf.CreateField("CHLDAPPID", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+
+    Set tdf = Nothing
+    Set db = Nothing
+End Sub
+
+' -------------------------
+' Module: Module_Tables_AMP
+' -------------------------
+Public Sub CreateTablesAMP_Full()
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+
+    Set db = CurrentDb()
+
+    SafeDropTable db, "AMP"
+    Set tdf = db.CreateTableDef("AMP")
+    With tdf.fields
+        .Append tdf.CreateField("APID", dbText, 20)
+        .Append tdf.CreateField("INVALID", dbText, 4)
+        .Append tdf.CreateField("VPID", dbText, 20)
+        .Append tdf.CreateField("NM", dbText, 255)
+        .Append tdf.CreateField("ABBREVNM", dbText, 255)
+        .Append tdf.CreateField("DESC", dbText, 255)
+        .Append tdf.CreateField("NMDT", dbDate)
+        .Append tdf.CreateField("NM_PREV", dbText, 255)
+        .Append tdf.CreateField("SUPPCD", dbText, 255)
+        .Append tdf.CreateField("LIC_AUTHCD", dbText, 4)
+        .Append tdf.CreateField("LIC_AUTH_PREVCD", dbText, 4)
+        .Append tdf.CreateField("LIC_AUTHCHANGECD", dbText, 4)
+        .Append tdf.CreateField("LIC_AUTHCHANGEDT", dbDate)
+        .Append tdf.CreateField("COMBPRODCD", dbText, 4)
+        .Append tdf.CreateField("FLAVOURCD", dbText, 4)
+        .Append tdf.CreateField("EMA", dbText, 4)
+        .Append tdf.CreateField("PARALLEL_IMPORT", dbText, 4)
+        .Append tdf.CreateField("AVAIL_RESTRICTCD", dbText, 4)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "APID"
+
+    ' AP_ING (composite PK APID + ISID)
+    SafeDropTable db, "AP_ING"
+    Set tdf = db.CreateTableDef("AP_ING")
+    With tdf.fields
+        .Append tdf.CreateField("APID", dbText, 20)
+        .Append tdf.CreateField("ISID", dbText, 20)
+        .Append tdf.CreateField("STRNTH", dbText, 20)
+        .Append tdf.CreateField("UOMCD", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "APID", "ISID"
+
+    ' LIC_ROUTE (composite PK APID + ROUTECD)
+    SafeDropTable db, "LIC_ROUTE"
+    Set tdf = db.CreateTableDef("LIC_ROUTE")
+    With tdf.fields
+        .Append tdf.CreateField("APID", dbText, 20)
+        .Append tdf.CreateField("ROUTECD", dbText, 20)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "APID", "ROUTECD"
+
+    ' AP_INFO (PK = APID)
+    SafeDropTable db, "AP_INFO"
+    Set tdf = db.CreateTableDef("AP_INFO")
+    With tdf.fields
+        .Append tdf.CreateField("APID", dbText, 20)
+        .Append tdf.CreateField("SZ_WEIGHT", dbText, 255)
+        .Append tdf.CreateField("COLOURCD", dbText, 20)
+        .Append tdf.CreateField("PROD_ORDER_NO", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "APID"
+
+    Set tdf = Nothing
+    Set db = Nothing
+End Sub
+
+' -------------------------
+' Module: Module_Tables_VTM
+' -------------------------
+Public Sub CreateTablesVTM_Full()
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+
+    Set db = CurrentDb()
+
+    SafeDropTable db, "VTM"
+    Set tdf = db.CreateTableDef("VTM")
+    With tdf.fields
+        .Append tdf.CreateField("VTMID", dbText, 20)
+        .Append tdf.CreateField("INVALID", dbText, 4)
+        .Append tdf.CreateField("NM", dbText, 255)
+        .Append tdf.CreateField("ABBREVNM", dbText, 255)
+        .Append tdf.CreateField("VTMIDPREV", dbText, 255)
+        .Append tdf.CreateField("VTMIDDT", dbDate)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "VTMID"
+
+    Set tdf = Nothing
+    Set db = Nothing
+End Sub
+
+' -------------------------
+' Module: Module_Tables_VMP
+' -------------------------
+Public Sub CreateTablesVMP_Full()
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+
+    Set db = CurrentDb()
+
+    SafeDropTable db, "VMP"
+    Set tdf = db.CreateTableDef("VMP")
+    With tdf.fields
+        .Append tdf.CreateField("VPID", dbText, 20)
+        .Append tdf.CreateField("VPIDDT", dbDate)
+        .Append tdf.CreateField("VPIDPREV", dbText, 255)
+        .Append tdf.CreateField("VTMID", dbText, 20)
+        .Append tdf.CreateField("INVALID", dbText, 4)
+        .Append tdf.CreateField("NM", dbText, 255)
+        .Append tdf.CreateField("ABBREVNM", dbText, 255)
+        .Append tdf.CreateField("BASISCD", dbText, 4)
+        .Append tdf.CreateField("NMDT", dbDate)
+        .Append tdf.CreateField("NMPREV", dbText, 255)
+        .Append tdf.CreateField("BASIS_PREVCD", dbText, 4)
+        .Append tdf.CreateField("NMCHANGECD", dbText, 4)
+        .Append tdf.CreateField("COMBPRODCD", dbText, 4)
+        .Append tdf.CreateField("PRES_STATCD", dbText, 255)
+        .Append tdf.CreateField("SUG_F", dbText, 4)
+        .Append tdf.CreateField("GLU_F", dbText, 4)
+        .Append tdf.CreateField("PRES_F", dbText, 4)
+        .Append tdf.CreateField("CFC_F", dbText, 4)
+        .Append tdf.CreateField("NON_AVAILCD", dbText, 4)
+        .Append tdf.CreateField("NON_AVAILDT", dbDate)
+        .Append tdf.CreateField("DF_INDCD", dbText, 4)
+        .Append tdf.CreateField("UDFS", dbText, 255)
+        .Append tdf.CreateField("UDFS_UOMCD", dbText, 255)
+        .Append tdf.CreateField("UNIT_DOSE_UOMCD", dbText, 255)
+        
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "VPID"
+
+    ' VPI (composite key VPID + ISID)
+    SafeDropTable db, "VPI"
+    Set tdf = db.CreateTableDef("VPI")
+    With tdf.fields
+        .Append tdf.CreateField("VPID", dbText, 20)
+        .Append tdf.CreateField("ISID", dbText, 20)
+        .Append tdf.CreateField("BASIS_STRNTCD", dbText, 255)
+        .Append tdf.CreateField("BS_SUBID", dbText, 255)
+        .Append tdf.CreateField("STRNT_NMRTR_VAL", dbText, 255)
+        .Append tdf.CreateField("STRNT_NMRTR_UOMCD", dbText, 255)
+        .Append tdf.CreateField("STRNT_DNMTR_VAL", dbText, 255)
+        .Append tdf.CreateField("STRNT_DNMTR_UOMCD", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "VPID", "ISID"
+
+    ' ONT (composite ONTID + VPID)
+    SafeDropTable db, "ONT"
+    Set tdf = db.CreateTableDef("ONT")
+    With tdf.fields
+        .Append tdf.CreateField("ONTID", dbText, 20)
+        .Append tdf.CreateField("VPID", dbText, 20)
+        .Append tdf.CreateField("FORMCD", dbText, 20)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "ONTID", "VPID"
+
+    ' DFORM (we keep composite possibility but per requirements PK = VPID)
+    SafeDropTable db, "DFORM"
+    Set tdf = db.CreateTableDef("DFORM")
+    With tdf.fields
+        .Append tdf.CreateField("VPID", dbText, 20)
+        .Append tdf.CreateField("FORMCD", dbText, 20)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "VPID"
+
+    ' DROUTE (PK = VPID)
+    SafeDropTable db, "DROUTE"
+    Set tdf = db.CreateTableDef("DROUTE")
+    With tdf.fields
+        .Append tdf.CreateField("VPID", dbText, 20)
+        .Append tdf.CreateField("ROUTECD", dbText, 20)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "VPID"
+
+    ' CONTROL_INFO (PK = VPID)
+    SafeDropTable db, "CONTROL_INFO"
+    Set tdf = db.CreateTableDef("CONTROL_INFO")
+    With tdf.fields
+        .Append tdf.CreateField("VPID", dbText, 20)
+        .Append tdf.CreateField("CATCD", dbText, 20)
+        .Append tdf.CreateField("CATDT", dbDate)
+        .Append tdf.CreateField("CAT_PREVCD", dbText, 20)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "VPID"
+
+    Set tdf = Nothing
+    Set db = Nothing
+End Sub
+
+' -------------------------
+' Module: Module_Tables_VMPP
+' -------------------------
+Public Sub CreateTablesVMPP_Full()
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+
+    Set db = CurrentDb()
+
+    SafeDropTable db, "VMPP"
+    Set tdf = db.CreateTableDef("VMPP")
+    With tdf.fields
+        .Append tdf.CreateField("VPPID", dbText, 20)
+        .Append tdf.CreateField("INVALID", dbText, 4)
+        .Append tdf.CreateField("NM", dbText, 255)
+        .Append tdf.CreateField("ABBREVNM", dbText, 255)
+        .Append tdf.CreateField("VPID", dbText, 20)
+        .Append tdf.CreateField("QTYVAL", dbText, 255)
+        .Append tdf.CreateField("QTY_UOMCD", dbText, 255)
+        .Append tdf.CreateField("COMBPACKCD", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "VPPID"
+
+    SafeDropTable db, "DTINFO"
+    Set tdf = db.CreateTableDef("DTINFO")
+    With tdf.fields
+        .Append tdf.CreateField("VPPID", dbText, 20)
+        .Append tdf.CreateField("PAY_CATCD", dbText, 255)
+        .Append tdf.CreateField("PRICE", dbText, 255)
+        .Append tdf.CreateField("DT", dbDate)
+        .Append tdf.CreateField("PREVPRICE", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+    AddPrimaryKey tdf, "VPPID"
+
+    SafeDropTable db, "CCONTENT_V"
+    Set tdf = db.CreateTableDef("CCONTENT_V")
+    With tdf.fields
+        .Append tdf.CreateField("PRNTVPPID", dbText, 255)
+        .Append tdf.CreateField("CHLDVPPID", dbText, 255)
+    End With
+    db.TableDefs.Append tdf
+
+    Set tdf = Nothing
+    Set db = Nothing
+End Sub
+
+
+
+' Create table relationships (cleaned + helper functions)
+Public Sub CreateTableRelationships()
+    Dim db As DAO.Database
+    Dim relNames As Variant
+    Dim i As Long
+
+    Set db = CurrentDb
+
+    ' --------------------------
+    ' 1) Delete existing relations (idempotent)
+    ' --------------------------
+    On Error Resume Next
+    relNames = Array( _
+        "rel_SUPPLIER_AMP", "rel_LIC_AUTH_AMP", "rel_LIC_AUTH_AMP_PREV", "rel_LIC_AUTHCHANGE_AMP", _
+        "rel_COMBPROD_AMP", "rel_COMBPROD_VMP", "rel_FLAVOUR_AMP", "rel_AVAIL_RESTRICT_AMP", _
+        "rel_COMBPACK_AMPP", "rel_COMBPACK_VMPP", "rel_LEGAL_AMPP", "rel_DISCCD_AMPP", _
+        "rel_PACKINFO_REIMB", "rel_PACKINFO_REIMB_PREV", "rel_REIMB_INFO_SPEC_CONT", "rel_REIMB_INFO_DND", _
+        "rel_COLOUR_AP_INFO", "rel_UOM_AP_ING", "rel_ROUTE_LIC_ROUTE", "rel_ROUTE_DROUTE", _
+        "rel_FORM_ONT", "rel_FORM_DFORM", "rel_BASIS_STRNTH_VPI", "rel_BASISOFNAME_VMP", _
+        "rel_BASISOFNAME_VMP_PREV", "rel_NAMECHANGE_VMP", "rel_PRESSTAT_VMP", "rel_NONAVAIL_VMP", _
+        "rel_DFIND_VMP", "rel_UOM_VPI_NMR", "rel_UOM_VPI_DMR", "rel_UOM_VMP_UDFS", _
+        "rel_UOM_VMP_UDOSE", "rel_UOM_VMPP_QTY", "rel_CONTROL_CAT", "rel_CONTROL_CAT_PREV", _
+        "rel_PRICE_BASIS_PRICE_INFO", "rel_VMP_AMP", "rel_VMP_VPI", "rel_AMP_AP_INFO", _
+        "rel_AMP_AP_ING", "rel_AMPP_PACKINFO", "rel_AMPP_PRICEINFO", "rel_AMPP_PRESCRIB", _
+        "rel_AMPP_REIMB", "rel_ING_VPI", "rel_ING_AP_ING", "rel_VTM_VMP", "rel_VMP_DROUTE", _
+        "rel_VMP_ONT", "rel_VMP_DFORM", "rel_VMP_CONTROL_INFO", "rel_VMP_VMPP", "rel_VMPP_DTINFO", _
+        "rel_AMP_LIC_ROUTE", "rel_AMPP_AMP", "rel_DTPAYMENTCATEGORY_DTINFO" _
+    )
+
+
+
+    For i = LBound(relNames) To UBound(relNames)
+        db.Relations.Delete relNames(i)
+    Next i
+    On Error GoTo 0
+
+    ' --------------------------
+    ' Optional: disable Name AutoCorrect to avoid instability when renaming objects
+    ' Uncomment if you want to enforce it programmatically (recommended to do once manually instead)
+    ' Application.SetOption "Auto Name Correct", False
+    ' Application.SetOption "Track Name AutoCorrect Info", False
+    ' --------------------------
+
+    ' --------------------------
+    ' 2) Lookup -> child (no cascade)
+    ' --------------------------
+    AddLookupRel "rel_SUPPLIER_AMP", "SUPPLIER", "AMP", "CD", Array("SUPPCD")
+    AddLookupRel "rel_LIC_AUTH_AMP", "LICENSING_AUTHORITY", "AMP", "CD", Array("LIC_AUTHCD")
+    AddLookupRel "rel_LIC_AUTH_AMP_PREV", "LICENSING_AUTHORITY", "AMP", "CD", Array("LIC_AUTH_PREVCD")
+    AddLookupRel "rel_LIC_AUTHCHANGE_AMP", "LICENSING_AUTHORITY_CHANGE_REASON", "AMP", "CD", Array("LIC_AUTHCHANGECD")
+    AddLookupRel "rel_COMBPROD_AMP", "COMBINATION_PROD_IND", "AMP", "CD", Array("COMBPRODCD")
+    AddLookupRel "rel_COMBPROD_VMP", "COMBINATION_PROD_IND", "VMP", "CD", Array("COMBPRODCD")
+    AddLookupRel "rel_FLAVOUR_AMP", "FLAVOUR", "AMP", "CD", Array("FLAVOURCD")
+    AddLookupRel "rel_AVAIL_RESTRICT_AMP", "AVAILABILITY_RESTRICTION", "AMP", "CD", Array("AVAIL_RESTRICTCD")
+    AddLookupRel "rel_COMBPACK_AMPP", "COMBINATION_PACK_IND", "AMPP", "CD", Array("COMBPACKCD")
+    AddLookupRel "rel_COMBPACK_VMPP", "COMBINATION_PACK_IND", "VMPP", "CD", Array("COMBPACKCD")
+    AddLookupRel "rel_LEGAL_AMPP", "LEGAL_CATEGORY", "AMPP", "CD", Array("LEGAL_CATCD")
+    AddLookupRel "rel_DISCCD_AMPP", "DISCONTINUED_IND", "AMPP", "CD", Array("DISCCD")
+    AddLookupRel "rel_PACKINFO_REIMB", "REIMBURSEMENT_STATUS", "PACK_INFO", "CD", Array("REIMB_STATCD")
+    AddLookupRel "rel_PACKINFO_REIMB_PREV", "REIMBURSEMENT_STATUS", "PACK_INFO", "CD", Array("REIMB_STATPREVCD")
+    AddLookupRel "rel_REIMB_INFO_SPEC_CONT", "SPEC_CONT", "REIMB_INFO", "CD", Array("SPEC_CONTCD")
+    AddLookupRel "rel_REIMB_INFO_DND", "DND", "REIMB_INFO", "CD", Array("DND")
+    AddLookupRel "rel_COLOUR_AP_INFO", "COLOUR", "AP_INFO", "CD", Array("COLOURCD")
+    AddLookupRel "rel_UOM_AP_ING", "UNIT_OF_MEASURE", "AP_ING", "CD", Array("UOMCD")
+    AddLookupRel "rel_ROUTE_LIC_ROUTE", "ROUTE", "LIC_ROUTE", "CD", Array("ROUTECD")
+    AddLookupRel "rel_ROUTE_DROUTE", "ROUTE", "DROUTE", "CD", Array("ROUTECD")
+    AddLookupRel "rel_FORM_ONT", "FORM", "ONT", "CD", Array("FORMCD")
+    AddLookupRel "rel_FORM_DFORM", "FORM", "DFORM", "CD", Array("FORMCD")
+    AddLookupRel "rel_BASIS_STRNTH_VPI", "BASIS_OF_STRNTH", "VPI", "CD", Array("BASIS_STRNTCD")
+    AddLookupRel "rel_BASISOFNAME_VMP", "BASIS_OF_NAME", "VMP", "CD", Array("BASISCD")
+    AddLookupRel "rel_BASISOFNAME_VMP_PREV", "BASIS_OF_NAME", "VMP", "CD", Array("BASIS_PREVCD")
+    AddLookupRel "rel_NAMECHANGE_VMP", "NAMECHANGE_REASON", "VMP", "CD", Array("NMCHANGECD")
+    AddLookupRel "rel_PRESSTAT_VMP", "VIRTUAL_PRODUCT_PRES_STATUS", "VMP", "CD", Array("PRES_STATCD")
+    AddLookupRel "rel_NONAVAIL_VMP", "VIRTUAL_PRODUCT_NON_AVAIL", "VMP", "CD", Array("NON_AVAILCD")
+    AddLookupRel "rel_DFIND_VMP", "DF_INDICATOR", "VMP", "CD", Array("DF_INDCD")
+    AddLookupRel "rel_DTPAYMENTCATEGORY_DTINFO", "DT_PAYMENT_CATEGORY", "DTINFO", "CD", Array("PAY_CATCD")
+
+    ' UNIT_OF_MEASURE -> multiple child fields across different tables
+    AddLookupRel "rel_UOM_VPI_NMR", "UNIT_OF_MEASURE", "VPI", "CD", Array("STRNT_NMRTR_UOMCD")
+    AddLookupRel "rel_UOM_VPI_DMR", "UNIT_OF_MEASURE", "VPI", "CD", Array("STRNT_DNMTR_UOMCD")
+    AddLookupRel "rel_UOM_VMP_UDFS", "UNIT_OF_MEASURE", "VMP", "CD", Array("UDFS_UOMCD")
+    AddLookupRel "rel_UOM_VMP_UDOSE", "UNIT_OF_MEASURE", "VMP", "CD", Array("UNIT_DOSE_UOMCD")
+    AddLookupRel "rel_UOM_VMPP_QTY", "UNIT_OF_MEASURE", "VMPP", "CD", Array("QTY_UOMCD")
+
+    ' CONTROL_DRUG_CATEGORY -> CONTROL_INFO (use CATCD / CAT_PREVCD as requested)
+    AddLookupRel "rel_CONTROL_CAT", "CONTROL_DRUG_CATEGORY", "CONTROL_INFO", "CD", Array("CATCD")
+    AddLookupRel "rel_CONTROL_CAT_PREV", "CONTROL_DRUG_CATEGORY", "CONTROL_INFO", "CD", Array("CAT_PREVCD")
+    AddLookupRel "rel_PRICE_BASIS_PRICE_INFO", "PRICE_BASIS", "PRICE_INFO", "CD", Array("PRICE_BASISCD")
+
+    ' --------------------------
+    ' 3) Structural relationships (parent -> child) WITH cascade (update + delete)
+    ' --------------------------
+    AddStructuralRel "rel_VMP_AMP", "VMP", "AMP", Array("VPID"), True
+    AddStructuralRel "rel_VMP_VPI", "VMP", "VPI", Array("VPID"), True
+    AddStructuralRel "rel_AMPP_AMP", "AMP", "AMPP", Array("APID"), True
+    AddStructuralRel "rel_AMP_AP_INFO", "AMP", "AP_INFO", Array("APID"), True
+    AddStructuralRel "rel_AMP_AP_ING", "AMP", "AP_ING", Array("APID"), True
+    AddStructuralRel "rel_AMPP_PACKINFO", "AMPP", "PACK_INFO", Array("APPID"), True
+    AddStructuralRel "rel_AMPP_PRICEINFO", "AMPP", "PRICE_INFO", Array("APPID"), True
+    AddStructuralRel "rel_AMPP_PRESCRIB", "AMPP", "PRESCRIB_INFO", Array("APPID"), True
+    AddStructuralRel "rel_AMPP_REIMB", "AMPP", "REIMB_INFO", Array("APPID"), True
+    AddStructuralRel "rel_ING_VPI", "ING", "VPI", Array("ISID"), True
+    AddStructuralRel "rel_ING_AP_ING", "ING", "AP_ING", Array("ISID"), True
+    AddStructuralRel "rel_VTM_VMP", "VTM", "VMP", Array("VTMID"), True
+    AddStructuralRel "rel_VMP_DROUTE", "VMP", "DROUTE", Array("VPID"), True
+    AddStructuralRel "rel_VMP_ONT", "VMP", "ONT", Array("VPID"), True
+    AddStructuralRel "rel_VMP_DFORM", "VMP", "DFORM", Array("VPID"), True
+    AddStructuralRel "rel_VMP_CONTROL_INFO", "VMP", "CONTROL_INFO", Array("VPID"), True
+    AddStructuralRel "rel_VMP_VMPP", "VMP", "VMPP", Array("VPID"), True
+    AddStructuralRel "rel_VMPP_DTINFO", "VMPP", "DTINFO", Array("VPPID"), True
+
+    ' LIC_ROUTE: map APID -> AMP (structural)
+    AddStructuralRel "rel_AMP_LIC_ROUTE", "AMP", "LIC_ROUTE", Array("APID"), True
+
+    ' --------------------------
+    ' Done
+    ' --------------------------
+    Set db = Nothing
+    MsgBox "All table relationships (lookup + structural) created.", vbInformation
+End Sub
+
+' =================================================
+' Helper: add a single-field lookup relation (no cascade)
+' pkName is the parent PK field name on parent table (e.g. "CD")
+' fkNames is a 1-based array or zero-based; function converts to collection - supports multiple FK target fields
+' =================================================
+Private Sub AddLookupRel(relName As String, parentTbl As String, childTbl As String, pkName As String, fkNames As Variant)
+    AddLookupRelMulti relName, parentTbl, childTbl, pkName, fkNames
+End Sub
+
+' =================================================
+' Helper: add lookup relation with multiple foreign-name targets (no cascade)
+' fkNames should be an array of target field names in the child table
+' =================================================
+Private Sub AddLookupRelMulti(relName As String, parentTbl As String, childTbl As String, pkName As String, fkNames As Variant)
+    Dim db As DAO.Database
+    Dim rel As DAO.Relation
+    Dim fld As DAO.Field
+    Dim i As Long
+    Dim fnames As Variant
+
+    Set db = CurrentDb
+    fnames = fkNames
+
+    ' Safety: require parent & child tables exist
+    If Not TableExists(parentTbl) Then
+        Debug.Print "AddLookupRelMulti: Parent table missing: " & parentTbl & " — skipping " & relName
+        Exit Sub
+    End If
+    If Not TableExists(childTbl) Then
+        Debug.Print "AddLookupRelMulti: Child table missing: " & childTbl & " — skipping " & relName
+        Exit Sub
+    End If
+
+    Set rel = db.CreateRelation(relName, parentTbl, childTbl)
+    For i = LBound(fnames) To UBound(fnames)
+        Set fld = rel.CreateField(pkName)
+        fld.ForeignName = fnames(i)
+        rel.fields.Append fld
+    Next i
+
+    On Error Resume Next
+    db.Relations.Append rel
+    If Err.Number <> 0 Then
+        Debug.Print "Error appending relation " & relName & ": " & Err.Number & " " & Err.Description
+        Err.Clear
+    End If
+    On Error GoTo 0
+
+    Set db = Nothing
+End Sub
+
+' =================================================
+' Helper: add a structural relation (supports multiple key columns). cascade = True sets update+delete cascade.
+' keyNames is an array of key names on the parent (and same names expected as FK field names on child).
+' Example: AddStructuralRel "rel_EX", "PARENT", "CHILD", Array("ID1","ID2"), True
+' =================================================
+Private Sub AddStructuralRel(relName As String, parentTbl As String, childTbl As String, keyNames As Variant, cascade As Boolean)
+    Dim db As DAO.Database
+    Dim rel As DAO.Relation
+    Dim fld As DAO.Field
+    Dim i As Long
+    Dim flags As Long
+    Dim keys As Variant
+
+    Set db = CurrentDb
+    keys = keyNames
+
+    If Not TableExists(parentTbl) Then
+        Debug.Print "AddStructuralRel: Parent table missing: " & parentTbl & " — skipping " & relName
+        Exit Sub
+    End If
+    If Not TableExists(childTbl) Then
+        Debug.Print "AddStructuralRel: Child table missing: " & childTbl & " — skipping " & relName
+        Exit Sub
+    End If
+
+    If cascade Then
+        flags = dbRelationUpdateCascade Or dbRelationDeleteCascade
+    Else
+        flags = 0
+    End If
+
+    Set rel = db.CreateRelation(relName, parentTbl, childTbl, flags)
+    For i = LBound(keys) To UBound(keys)
+        Set fld = rel.CreateField(keys(i))
+        ' assume child FK has same name as parent PK for structural relations (common pattern)
+        fld.ForeignName = keys(i)
+        rel.fields.Append fld
+    Next i
+
+    On Error Resume Next
+    db.Relations.Append rel
+    If Err.Number <> 0 Then
+        Debug.Print "Error appending relation " & relName & ": " & Err.Number & " " & Err.Description
+        Err.Clear
+    End If
+    On Error GoTo 0
+
+    Set db = Nothing
+End Sub
+
+' =================================================
+' Utility: check whether a table exists in the current DB
+' =================================================
+Private Function TableExists(tblName As String) As Boolean
+    Dim tdf As DAO.TableDef
+    TableExists = False
+    On Error Resume Next
+    Set tdf = CurrentDb.TableDefs(tblName)
+    If Err.Number = 0 Then TableExists = True
+    On Error GoTo 0
+    Set tdf = Nothing
+End Function
+
+'utility - delete all relationships
+
+Public Sub DeleteAllRelationships()
+    Dim db As DAO.Database
+    Dim i As Long
+
+    Set db = CurrentDb
+
+    On Error Resume Next
+    For i = db.Relations.count - 1 To 0 Step -1
+        db.Relations.Delete db.Relations(i).Name
+    Next i
+    On Error GoTo 0
+End Sub
+
+Public Sub deleteTableRelationships()
+    Dim db As DAO.Database
+    Dim relNames As Variant
+    Dim i As Long
+
+    Set db = CurrentDb
+
+    ' --------------------------
+    ' 1) Delete existing relations (idempotent)
+    ' --------------------------
+    On Error Resume Next
+    relNames = Array( _
+        "rel_SUPPLIER_AMP", "rel_LIC_AUTH_AMP", "rel_LIC_AUTH_AMP_PREV", "rel_LIC_AUTHCHANGE_AMP", _
+        "rel_COMBPROD_AMP", "rel_COMBPROD_VMP", "rel_FLAVOUR_AMP", "rel_AVAIL_RESTRICT_AMP", _
+        "rel_COMBPACK_AMPP", "rel_COMBPACK_VMPP", "rel_LEGAL_AMPP", "rel_DISCCD_AMPP", _
+        "rel_PACKINFO_REIMB", "rel_PACKINFO_REIMB_PREV", "rel_REIMB_INFO_SPEC_CONT", "rel_REIMB_INFO_DND", _
+        "rel_COLOUR_AP_INFO", "rel_UOM_AP_ING", "rel_ROUTE_LIC_ROUTE", "rel_ROUTE_DROUTE", _
+        "rel_FORM_ONT", "rel_FORM_DFORM", "rel_BASIS_STRNTH_VPI", "rel_BASISOFNAME_VMP", _
+        "rel_BASISOFNAME_VMP_PREV", "rel_NAMECHANGE_VMP", "rel_PRESSTAT_VMP", "rel_NONAVAIL_VMP", _
+        "rel_DFIND_VMP", "rel_UOM_VPI_NMR", "rel_UOM_VPI_DMR", "rel_UOM_VMP_UDFS", _
+        "rel_UOM_VMP_UDOSE", "rel_UOM_VMPP_QTY", "rel_CONTROL_CAT", "rel_CONTROL_CAT_PREV", _
+        "rel_PRICE_BASIS_PRICE_INFO", "rel_VMP_AMP", "rel_VMP_VPI", "rel_AMP_AP_INFO", _
+        "rel_AMP_AP_ING", "rel_AMPP_PACKINFO", "rel_AMPP_PRICEINFO", "rel_AMPP_PRESCRIB", _
+        "rel_AMPP_REIMB", "rel_ING_VPI", "rel_ING_AP_ING", "rel_VTM_VMP", "rel_VMP_DROUTE", _
+        "rel_VMP_ONT", "rel_VMP_DFORM", "rel_VMP_CONTROL_INFO", "rel_VMP_VMPP", "rel_VMPP_DTINFO", _
+        "rel_AMP_LIC_ROUTE", "rel_AMPP_AMP", "rel_DTPAYMENTCATEGORY_DTINFO" _
+    )
+
+
+
+    For i = LBound(relNames) To UBound(relNames)
+        db.Relations.Delete relNames(i)
+    Next i
+    MsgBox "relationships deleted"
+
+End Sub
+
+' -------------------------
+' Module: Module_CreateAll
+' -------------------------
+Public Sub CreateAllTables_Modular()
+    ' Creates all tables in a sensible order
+    ' Call this to build the entire schema
+
+    ' Lookup first (no FKs expected)
+    CreateLookupTables
+
+    ' VTM
+    CreateTablesVTM_Full
+
+    ' VMP-related
+    CreateTablesVMP_Full
+
+    ' VMPP-related
+    CreateTablesVMPP_Full
+
+    ' ING (ingredients)
+    CreateTable_ING
+
+    ' AMPP group (packages)
+    CreateTablesAMPP_Full
+
+    ' AMP group (products)
+    CreateTablesAMP_Full
+    
+    'import data (before relationships are created.)
+    importDMD
+
+    ' Create relations
+    CreateTableRelationships
+
+    MsgBox "All tables and relations created successfully.", vbInformation
+End Sub
+
+' End of file
+
+
+
